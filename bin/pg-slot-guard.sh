@@ -152,7 +152,7 @@ ORDER BY retained_wal_bytes DESC, s.slot_name ASC;"
     candidates=$(psql -X -v ON_ERROR_STOP=1 -A -t -q -F $'\t' \
         -v threshold_bytes="$threshold_bytes" \
         -v target_slot="$target_slot" \
-        -c "$list_sql")
+        <<< "$list_sql")
 
     if [[ -z "$candidates" ]]; then
         printf '[OK] No inactive replication slots exceed %s MiB threshold.\n' "$threshold_mb"
@@ -170,9 +170,9 @@ WHERE s.slot_name = :'slot_name'
         fi
         found_count=$(( found_count + 1 ))
         if [[ "$apply_drop" == "true" ]]; then
-            drop_result=$(psql -X -v ON_ERROR_STOP=1 -A -t -q \
+            drop_result=$(psql -X -v ON_ERROR_STOP=1 -A -t -q -F $'\t' \
                 -v slot_name="$slot_name" \
-                -c "$drop_sql")
+                <<< "$drop_sql")
             if [[ -n "$drop_result" ]]; then
                 printf '[DROPPED] slot=%s type=%s plugin=%s db=%s retained=%s (%s bytes)\n' \
                     "$slot_name" "$slot_type" "$plugin" "$db_name" "$retained_pretty" "$retained_bytes"
