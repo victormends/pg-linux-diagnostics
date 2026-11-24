@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client, shellcheck, and jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client shellcheck jq
+
+      - name: Run shellcheck on all Bash scripts
+        run: shellcheck bin/*.sh tests/*.sh
+
+      - name: Start PostgreSQL 16 container
+        run: docker compose up -d --wait
+
+      - name: Wait for PostgreSQL readiness
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h 127.0.0.1 -p 5432 -U diag -d diagdb; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready within 30 seconds" >&2
+          exit 1
+
+      - name: Run live integration test suite
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: diag
+          PGPASSWORD: diag_test_password
+          PGDATABASE: diagdb
+        run: |
+          chmod +x bin/*.sh tests/*.sh
+          ./tests/integration.sh
+
+      - name: Tear down Docker Compose stack
+        if: always()
+        run: docker compose down -v
